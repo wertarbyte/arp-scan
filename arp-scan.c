@@ -63,6 +63,7 @@ static float backoff_factor = DEFAULT_BACKOFF_FACTOR;	/* Backoff factor */
 static int snaplen = SNAPLEN;		/* Pcap snap length */
 static char *if_name=NULL;		/* Interface name, e.g. "eth0" */
 static int quiet_flag=0;		/* Don't decode the packet */
+static int plain_flag=0;		/* Only show host information */
 static int ignore_dups=0;		/* Don't display duplicate packets */
 static uint32_t arp_spa;		/* Source IP address */
 static int arp_spa_flag=0;		/* Source IP address specified */
@@ -215,10 +216,12 @@ main(int argc, char *argv[]) {
    if (pcap_handle) {
       if ((datalink=pcap_datalink(pcap_handle)) < 0)
          err_msg("pcap_datalink: %s", pcap_geterr(pcap_handle));
-      printf("Interface: %s, datalink type: %s (%s)\n",
+      if (!plain_flag) {
+         printf("Interface: %s, datalink type: %s (%s)\n",
              pkt_read_file_flag ? "savefile" : if_name,
              pcap_datalink_val_to_name(datalink),
              pcap_datalink_val_to_description(datalink));
+      }
       if (datalink != DLT_EN10MB) {
          warn_msg("WARNING: Unsupported datalink type");
       }
@@ -322,6 +325,9 @@ main(int argc, char *argv[]) {
          err_msg("ERROR: You can not specify targets with the --localnet option");
       if (filename_flag)
          err_msg("ERROR: You can not specify both --file and --localnet options");
+   }
+   if (debug && plain_flag) {
+      err_msg("ERROR: You can not request both plain and debug output");
    }
 /*
  *      If we're not reading from a file, and --localnet was not specified, then
@@ -494,8 +500,10 @@ main(int argc, char *argv[]) {
 /*
  *      Display initial message.
  */
-   printf("Starting %s with %u hosts (http://www.nta-monitor.com/tools/arp-scan/)\n",
+   if (!plain_flag) {
+      printf("Starting %s with %u hosts (http://www.nta-monitor.com/tools/arp-scan/)\n",
           PACKAGE_STRING, num_hosts);
+   }
 /*
  *      Display the lists if verbose setting is 3 or more.
  */
@@ -605,7 +613,7 @@ main(int argc, char *argv[]) {
       recvfrom_wto(pcap_fd, select_timeout);
    } /* End While */
 
-   printf("\n");        /* Ensure we have a blank line */
+   if (!plain_flag) printf("\n");        /* Ensure we have a blank line */
 
    if (link_handle)
       link_close(link_handle);
@@ -617,10 +625,11 @@ main(int argc, char *argv[]) {
    timeval_diff(&end_time, &start_time, &elapsed_time);
    elapsed_seconds = (elapsed_time.tv_sec*1000 +
                       elapsed_time.tv_usec/1000) / 1000.0;
-
-   printf("Ending %s: %u hosts scanned in %.3f seconds (%.2f hosts/sec). %u responded\n",
+   if (!plain_flag) {
+      printf("Ending %s: %u hosts scanned in %.3f seconds (%.2f hosts/sec). %u responded\n",
           PACKAGE_STRING, num_hosts, elapsed_seconds,
           num_hosts/elapsed_seconds, responders);
+   }
    if (debug) {print_times(); printf("main: End\n");}
    return 0;
 }
@@ -891,9 +900,10 @@ clean_up(void) {
    if (pcap_handle && !pkt_read_file_flag) {
       if ((pcap_stats(pcap_handle, &stats)) < 0)
          err_msg("pcap_stats: %s", pcap_geterr(pcap_handle));
-
-      printf("%u packets received by filter, %u packets dropped by kernel\n",
+      if (!plain_flag) {
+         printf("%u packets received by filter, %u packets dropped by kernel\n",
              stats.ps_recv, stats.ps_drop);
+      }
    }
    if (pcap_dump_handle) {
       pcap_dump_close(pcap_dump_handle);
@@ -1038,6 +1048,7 @@ usage(int status, int detailed) {
       fprintf(stderr, "\t\t\tconfigured up interface (excluding loopback).\n");
       fprintf(stderr, "\t\t\tThe interface specified must support ARP.\n");
       fprintf(stderr, "\n--quiet or -q\t\tOnly display minimal output.\n");
+      fprintf(stderr, "\n--plain\t\tDisplay host information only, suppress status reports\n");
       fprintf(stderr, "\t\t\tIf this option is specified, then only the minimum\n");
       fprintf(stderr, "\t\t\tinformation is displayed. With this option, the\n");
       fprintf(stderr, "\t\t\tOUI files are not used.\n");
@@ -1737,6 +1748,7 @@ process_options(int argc, char *argv[]) {
       {"snap", required_argument, 0, 'n'},
       {"interface", required_argument, 0, 'I'},
       {"quiet", no_argument, 0, 'q'},
+      {"plain", no_argument, 0, '-'},
       {"ignoredups", no_argument, 0, 'g'},
       {"random", no_argument, 0, 'R'},
       {"numeric", no_argument, 0, 'N'},
@@ -1811,6 +1823,9 @@ process_options(int argc, char *argv[]) {
             break;
          case 'q':	/* --quiet */
             quiet_flag=1;
+            break;
+         case '-':	/* --plain */
+            plain_flag=1;
             break;
          case 'g':	/* --ignoredups */
             ignore_dups=1;
