@@ -1,0 +1,8 @@
+.deps/
+*.o
+Makefile
+arp-scan
+config.h
+config.log
+config.status
+stamp-h1
